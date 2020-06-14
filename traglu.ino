@@ -14,12 +14,29 @@
 #define OLED_RESET     4
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
+typedef struct {
+  unsigned long ts;
+  double value;
+} record;
+
 // TODO: this should be replaced with a Real-time clocko
 // NOTE: The generated value is corrected for the local timezone (CEST+0200)
 volatile unsigned long current_time = __TIME_UNIX__ - 2*60*60;
 volatile bool redraw = true;
 volatile int current_value = 0;
 volatile unsigned long current_value_at = 0;
+
+const int records_length = 30;
+volatile int records_cursor = 6;
+record records[records_length] = {
+  // just some sample data
+  {current_time - 14*60*60,  5.0},
+  {current_time - 12*60*60, 10.0},
+  {current_time - 10*60*60,  7.0},
+  {current_time -  8*60*60, 17.4},
+  {current_time -  4*60*60, 12.0},
+  {current_time -  2*60*60,  9.0},
+};
 
 const byte interruptPinI = 2;
 
@@ -68,7 +85,8 @@ void loop() {
   // automatically store the value if high enough
   if (current_value > 0 && (millis() - current_value_at) >= 1000) {
     if (current_value > 2) {
-      // todo records storage
+      records[records_cursor] = {current_time, (double)current_value};
+      records_cursor += 1;
     }
     current_value = 0;
     redraw = true;
