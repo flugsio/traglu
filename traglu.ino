@@ -18,6 +18,10 @@ Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 // NOTE: The generated value is corrected for the local timezone (CEST+0200)
 volatile unsigned long current_time = __TIME_UNIX__ - 2*60*60;
 volatile bool redraw = true;
+volatile int current_value = 0;
+volatile unsigned long current_value_at = 0;
+
+const byte interruptPinI = 2;
 
 void setup() {
   // setup 1 second clock interrupt
@@ -39,6 +43,9 @@ void setup() {
     Serial.println(F("SSD1306 allocation failed"));
     for(;;);
   }
+
+  pinMode(interruptPinI, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(interruptPinI), increaseI, FALLING);
 }
 
 // timer1 interrupt
@@ -47,8 +54,26 @@ ISR(TIMER1_COMPA_vect) {
   redraw = true;
 }
 
+// This is the 1/I button, which is used to increase the value by 1
+void increaseI() {
+  current_value += 1;
+  if (current_value > 33) {
+    current_value = 0;
+  }
+  current_value_at = millis();
+  redraw = true;
+}
 
 void loop() {
+  // automatically store the value if high enough
+  if (current_value > 0 && (millis() - current_value_at) >= 1000) {
+    if (current_value > 2) {
+      // todo records storage
+    }
+    current_value = 0;
+    redraw = true;
+  }
+
   if (redraw) {
     redraw = false;
     display.clearDisplay();
@@ -58,6 +83,12 @@ void loop() {
     display.setTextColor(WHITE);
     display.setCursor(0, 0);
     display.println(current_time);
+
+    // draw value
+    display.setTextSize(2);
+    display.setTextColor(WHITE);
+    display.setCursor(100, 0);
+    display.println(current_value);
 
     display.display();
   }
