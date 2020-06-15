@@ -30,12 +30,12 @@ const int records_length = 30;
 volatile int records_cursor = 6;
 record records[records_length] = {
   // just some sample data
-  {current_time - 14*60*60,  5.0},
-  {current_time - 12*60*60, 10.0},
-  {current_time - 10*60*60,  7.0},
-  {current_time -  8*60*60, 17.4},
-  {current_time -  4*60*60, 12.0},
-  {current_time -  2*60*60,  9.0},
+  {current_time - 14l*60*60,  5.0},
+  {current_time - 12l*60*60, 10.0},
+  {current_time - 10l*60*60,  7.0},
+  {current_time -  8l*60*60, 17.4},
+  {current_time -  4l*60*60,  4.0},
+  {current_time -  2l*60*60,  9.0},
 };
 
 const byte interruptPinI = 2;
@@ -81,6 +81,20 @@ void increaseI() {
   redraw = true;
 }
 
+byte valueToY(double value) {
+  // max/min breaks the line angle, however the library can't handle it
+  return min(63, max(0, display.height()-1-(value-4)*4));
+}
+
+// TODO: a bit too messy
+byte tsToX(double ts) {
+  // 16 hours in seconds
+  unsigned long span = 16l*60*60;
+  // seconds per pixel, 1 pixel per 8 minutes
+  int width = span/120;
+  return min(127, max(3, 3 + (ts - (current_time - span))/width));
+}
+
 void loop() {
   // automatically store the value if high enough
   if (current_value > 0 && (millis() - current_value_at) >= 1000) {
@@ -96,17 +110,43 @@ void loop() {
     redraw = false;
     display.clearDisplay();
 
+    // mostly everything will draw with WHITE to enable the pixels
+    display.setTextColor(WHITE);
+
     // draw current time
     display.setTextSize(1);
-    display.setTextColor(WHITE);
     display.setCursor(0, 0);
     display.println(current_time);
 
     // draw value
     display.setTextSize(2);
-    display.setTextColor(WHITE);
     display.setCursor(100, 0);
     display.println(current_value);
+
+    // draw graph
+    display.setTextSize(1);
+    for (byte i = 0; i < min(records_length, records_cursor); i++) {
+      // calculate display positions for point
+      byte x_pos = tsToX(records[i].ts);
+      byte y_pos = valueToY(records[i].value);
+
+      // draw label, center and below/above the point
+      if (records[i].value > 10) {
+        display.setCursor(x_pos-6, y_pos+10);
+      } else {
+        display.setCursor(x_pos-3, y_pos-14);
+      }
+      display.println((byte)records[i].value);
+
+      // draw line between this point and the next, if there is one
+      if ((i + 1) < records_length && records[i + 1].value != 0) {
+        byte x_pos2 = tsToX(records[i + 1].ts);
+        byte y_pos2 = valueToY(records[i + 1].value);
+        display.drawLine(x_pos, y_pos, x_pos2, y_pos2, WHITE);
+      } else {
+        break;
+      }
+    }
 
     display.display();
   }
