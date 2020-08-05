@@ -15,27 +15,30 @@
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
 typedef struct {
-  unsigned long ts;
-  double value;
+  // minutes since records_start_time
+  unsigned int ts;
+  byte value;
 } record;
 
 // TODO: this should be replaced with a Real-time clocko
 // NOTE: The generated value is corrected for the local timezone (CEST+0200)
 volatile unsigned long current_time = __TIME_UNIX__ - 2*60*60;
+// unsigned int - 65000
 volatile bool redraw = true;
-volatile int current_value = 0;
+volatile byte current_value = 0;
 volatile unsigned long current_value_at = 0;
 
-const int records_length = 30;
+volatile unsigned long records_start_time = current_time - 14l*60*60;
+const int records_length = 10;
 volatile int records_cursor = 6;
 record records[records_length] = {
   // just some sample data
-  {current_time - 14l*60*60,  5.0},
-  {current_time - 12l*60*60, 10.0},
-  {current_time - 10l*60*60,  7.0},
-  {current_time -  8l*60*60, 17.4},
-  {current_time -  4l*60*60,  4.0},
-  {current_time -  2l*60*60,  9.0},
+  { 0,     5},
+  { 2*60, 10},
+  { 4*60,  7},
+  { 6*60, 17},
+  { 8*60,  4},
+  {10*60,  9},
 };
 
 const byte interruptPinI = 2;
@@ -81,13 +84,13 @@ void increaseI() {
   redraw = true;
 }
 
-byte valueToY(double value) {
+byte valueToY(byte value) {
   // max/min breaks the line angle, however the library can't handle it
   return min(63, max(0, display.height()-1-(value-4)*4));
 }
 
 // TODO: a bit too messy
-byte tsToX(double ts) {
+byte tsToX(unsigned long ts) {
   // 16 hours in seconds
   unsigned long span = 16l*60*60;
   // seconds per pixel, 1 pixel per 8 minutes
@@ -99,7 +102,7 @@ void loop() {
   // automatically store the value if high enough
   if (current_value > 0 && (millis() - current_value_at) >= 1000) {
     if (current_value > 2) {
-      records[records_cursor] = {current_time, (double)current_value};
+      records[records_cursor] = {(unsigned int)((current_time - records_start_time) / 60), current_value};
       records_cursor += 1;
     }
     current_value = 0;
@@ -127,7 +130,7 @@ void loop() {
     display.setTextSize(1);
     for (byte i = 0; i < min(records_length, records_cursor); i++) {
       // calculate display positions for point
-      byte x_pos = tsToX(records[i].ts);
+      byte x_pos = tsToX(records[i].ts*60 + records_start_time);
       byte y_pos = valueToY(records[i].value);
 
       // draw label, center and below/above the point
@@ -136,11 +139,11 @@ void loop() {
       } else {
         display.setCursor(x_pos-3, y_pos-14);
       }
-      display.println((byte)records[i].value);
+      display.println(records[i].value);
 
       // draw line between this point and the next, if there is one
       if ((i + 1) < records_length && records[i + 1].value != 0) {
-        byte x_pos2 = tsToX(records[i + 1].ts);
+        byte x_pos2 = tsToX(records[i + 1].ts*60 + records_start_time);
         byte y_pos2 = valueToY(records[i + 1].value);
         display.drawLine(x_pos, y_pos, x_pos2, y_pos2, WHITE);
       } else {
