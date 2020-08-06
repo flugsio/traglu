@@ -5,8 +5,8 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 // from https://github.com/jerabaul29/Compile_time_Cpp_UNIX_timestamp/tree/master/CompilationTime_PureMacro/src
-#include "lib/CompilationTime_original.h"
-#include "lib/CompilationTime.h"
+#include "../lib/CompilationTime_original.h"
+#include "../lib/CompilationTime.h"
 
 // OLED display setup
 #define SCREEN_WIDTH 128
