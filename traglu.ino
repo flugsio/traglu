@@ -5,8 +5,18 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 // from https://github.com/jerabaul29/Compile_time_Cpp_UNIX_timestamp/tree/master/CompilationTime_PureMacro/src
-#include "lib/CompilationTime_original.h"
-#include "lib/CompilationTime.h"
+//#include "lib/CompilationTime_original.h"
+//#include "lib/CompilationTime.h"
+// from http://www.elecrow.com/wiki/index.php?title=File:RTC.zip
+/* #include "lib/RTC/RTClib.h" */
+/* RTC_DS1307 RTC; */
+
+// from https://github.com/PaulStoffregen/Time
+#include "lib/Time/TimeLib.h"
+
+// from https://github.com/PaulStoffregen/DS1307RTC
+//#include "lib/DS1307RTC/DS1307RTC.h"
+#include "lib/DS1307RTC/DS1307RTC.cpp"
 
 // OLED display setup
 #define SCREEN_WIDTH 128
@@ -15,18 +25,21 @@
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
 typedef struct {
+  // todo, either change to offset, or store off-chip
   unsigned long ts;
+  // todo: change this to byte
   double value;
 } record;
 
 // TODO: this should be replaced with a Real-time clocko
 // NOTE: The generated value is corrected for the local timezone (CEST+0200)
-volatile unsigned long current_time = __TIME_UNIX__ - 2*60*60;
+//volatile unsigned long current_time = __TIME_UNIX__ - 2*60*60;
+volatile unsigned long current_time = 1595977451 - 2*60*60;
 volatile bool redraw = true;
 volatile int current_value = 0;
 volatile unsigned long current_value_at = 0;
 
-const int records_length = 30;
+const int records_length = 20;
 volatile int records_cursor = 6;
 record records[records_length] = {
   // just some sample data
@@ -40,7 +53,16 @@ record records[records_length] = {
 
 const byte interruptPinI = 2;
 
+void print2digits(int number) {
+  if (number >= 0 && number < 10) {
+    Serial.write('0');
+  }
+  Serial.print(number);
+}
+
+  tmElements_t tm;
 void setup() {
+
   // setup 1 second clock interrupt
   cli();
   TCCR1A = 0; // set entire TCCR1A register to 0
@@ -55,12 +77,29 @@ void setup() {
 
   Serial.begin(9600);
 
-  // display could use either 0x3C or 0x3D
-  if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C, 1)) {
-    Serial.println(F("SSD1306 allocation failed"));
-    for(;;);
+  /* Wire.begin(); */
+  if (getDate(__DATE__) && getTime(__TIME__)) {
+    RTC.write(tm);
+  }
+  /* Wire.end(); */
+  delay(100);
+
+  while(true) {
+    // display could use either 0x3C or 0x3D
+    if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C, 1)) {
+      //if(!display.begin(SSD1306_EXTERNALVCC, 0x3C, 1)) {
+      Serial.println(F("SSD1306 allocation failed"));
+      /* for(;;); */
+      delay(1000);
+    } else {
+      Serial.println(F("SSD1306 continuing"));
+      break;
+    }
   }
 
+  Serial.println(F("Starting"));
+
+  //Wire.begin();
   pinMode(interruptPinI, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(interruptPinI), increaseI, FALLING);
 }
@@ -70,6 +109,40 @@ ISR(TIMER1_COMPA_vect) {
   current_time += 1;
   redraw = true;
 }
+
+const char *monthName[12] = {
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+};
+
+bool getTime(const char *str)
+{
+  int Hour, Min, Sec;
+
+  if (sscanf(str, "%d:%d:%d", &Hour, &Min, &Sec) != 3) return false;
+  tm.Hour = Hour;
+  tm.Minute = Min;
+  tm.Second = Sec;
+  return true;
+}
+
+bool getDate(const char *str)
+{
+  char Month[12];
+  int Day, Year;
+  uint8_t monthIndex;
+
+  if (sscanf(str, "%s %d %d", Month, &Day, &Year) != 3) return false;
+  for (monthIndex = 0; monthIndex < 12; monthIndex++) {
+    if (strcmp(Month, monthName[monthIndex]) == 0) break;
+  }
+  if (monthIndex >= 12) return false;
+  tm.Day = Day;
+  tm.Month = monthIndex + 1;
+  tm.Year = CalendarYrToTm(Year);
+  return true;
+}
+
 
 // This is the 1/I button, which is used to increase the value by 1
 void increaseI() {
@@ -148,7 +221,41 @@ void loop() {
       }
     }
 
+  delay(100);
+  //tmElements_t tm;
+
+  if (RTC.read(tm)) {
+  /*   print2digits(tm.Hour); */
+  /*   Serial.write(':'); */
+  /*   print2digits(tm.Minute); */
+  /*   Serial.write(':'); */
+  /*   print2digits(tm.Second); */
+  /*   delay(100); */
+
+    display.setCursor(30, 30);
+    display.println((byte)tm.Second);
+  /*   delay(100); */
+  /*   Serial.print(", Date (D/M/Y) = "); */
+  /*   Serial.print(tm.Day); */
+  /*   Serial.write('/'); */
+  /*   Serial.print(tm.Month); */
+  /*   Serial.write('/'); */
+  /*   Serial.print(tmYearToCalendar(tm.Year)); */
+  /*   Serial.println(); */
+  /* } else { */
+  /*   if (RTC.chipPresent()) { */
+  /*     Serial.println("The DS1307 is stopped.  Please run the SetTime"); */
+  /*     Serial.println("example to initialize the time and begin running."); */
+  /*     Serial.println(); */
+  /*   } else { */
+  /*     Serial.println("DS1307 read error!  Please check the circuitry."); */
+  /*     Serial.println(); */
+    }
+  /* } */
+
+
     display.display();
   }
   delay(100);
+
 }
