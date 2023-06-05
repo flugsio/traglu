@@ -13,6 +13,9 @@
 #include "../lib/CompilationTime_original.h"
 #include "../lib/CompilationTime.h"
 
+#include <TimeLib.h>
+#include <DS1307RTC.h>
+
 typedef struct {
   // minutes since records_start_time
   unsigned int ts;
@@ -29,6 +32,10 @@ volatile unsigned long current_value_at = 0;
 
 volatile unsigned long records_start_time = current_time - 14l*60*60;
 const int records_length = 10;
+// https://github.com/tim0s/MicrowireEEPROM
+// https://www.mathworks.com/help/supportpkg/arduino/examples/communicating-with-an-spi-based-eeprom-using-arduino-hardware.html
+// https://www.microchip.com/wwwproducts/en/93LC46B
+// https://ww1.microchip.com/downloads/en/DeviceDoc/20001749K.pdf
 volatile int records_cursor = 6;
 record records[records_length] = {
   // just some sample data
@@ -56,6 +63,7 @@ void setup() {
   sei();
 
   Serial.begin(9600);
+  while (!Serial);
 
   // display could use either 0x3C or 0x3D
   if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C, 1)) {
@@ -65,6 +73,18 @@ void setup() {
 
   pinMode(interruptPinI, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(interruptPinI), increaseI, FALLING);
+
+  tmElements_t tm;
+  if (RTC.read(tm)) {
+    Serial.print(tm.Hour);
+    Serial.write(':');
+    Serial.print(tm.Minute);
+    Serial.write(':');
+    Serial.print(tm.Second);
+    Serial.println();
+  } else {
+    Serial.println("time error");
+  }
 }
 
 // timer1 interrupt
